@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hệ Thống Xác Minh Phần Thưởng</title>
+    <!-- Tích hợp Firebase SDK Compat để kết nối Cơ sở dữ liệu đám mây -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -52,14 +57,12 @@
             width: 100%;
             box-sizing: border-box;
         }
-        /* Màu xanh dương cho nút liên kết */
         .btn-oauth {
             background: #5865F2;
             box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
         }
         .btn-oauth:hover { background: #4752C4; transform: translateY(-2px); }
         
-        /* Màu xanh lá cho nút nhận thưởng trực tiếp */
         .btn-claim {
             background: linear-gradient(135deg, #2ecc71, #27ae60);
             box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
@@ -83,109 +86,220 @@
 <body>
 
 <div class="card">
-    <div class="icon" id="webIcon">🔗</div>
-    <h1 id="webTitle">Quầy Nhận Thưởng</h1>
-    <p id="webDesc">Đang kiểm tra trạng thái tài khoản của bạn trên hệ thống...</p>
+    <div class="icon" id="webIcon">⏳</div>
+    <h1 id="webTitle">Đang Khởi Động...</h1>
+    <p id="webDesc">Đang kết nối hệ thống dữ liệu bảo mật...</p>
     
-    <button class="btn btn-oauth" id="actionBtn" disabled>ĐANG KIỂM TRA...</button>
+    <button class="btn btn-oauth" id="actionBtn" disabled>VUI LÒNG ĐỢI...</button>
     
-    <div class="footer-text">Hệ thống đồng bộ dữ liệu chống lạm dụng</div>
+    <div class="footer-text">Hệ thống cơ sở dữ liệu đám mây chống lạm dụng</div>
 </div>
 
 <script>
+    // Link OAuth2 Discord của bạn
     const oauth2Url = "https://discord.com/oauth2/authorize?client_id=1401137325043617922&response_type=code&redirect_uri=https%3A%2F%2Fvietscript7878.github.io%2Fnhanthuong%2F&scope=identify";
-    const webhookUrl = "https://discord.com/api/webhooks/1507661372471902278/j4cT8FtQUALGpKHRNBAG2aVLr4Up4EcVQOOt91DMHclsF2ZLcxr_GVgmTKM4LnvAkLNj";
+    
+    // Webhook nhận log chính thức (Đã cập nhật theo yêu cầu của bạn)
+    const webhookUrl = "https://discord.com/api/webhooks/1507677264643493939/juWE5-FztMPxHbglQNSlDgmhG0-8e72Kmw0ZJEfqduBY1RcMfH1Lqh5esagw7slH2rW5";
 
-    function getParam(name) {
-        const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get(name);
-    }
+    // Emoji custom của bạn
+    const vndEmoji = "<:vnd:1507677930556231710>";
 
-    const userId = getParam('userid');
-    const secureToken = getParam('secure_token') || "Không có token";
+    // Đọc tham số URL ban đầu
     const urlParams = new URLSearchParams(window.location.search);
+    const urlUserId = urlParams.get('userid');
+    const urlSecureToken = urlParams.get('secure_token');
     const code = urlParams.get('code');
+
+    // NẾU CÓ THAM SỐ TRÊN URL -> LƯU NGAY VÀO BỘ NHỚ ĐỆM ĐỂ CHỐNG MẤT KHI REDIRECT
+    if (urlUserId) localStorage.setItem('saved_userid', urlUserId);
+    if (urlSecureToken) localStorage.setItem('saved_secure_token', urlSecureToken);
+
+    // LẤY DỮ LIỆU ĐÃ SAO LƯU AN TOÀN
+    const activeUserId = urlUserId || localStorage.getItem('saved_userid');
+    const activeSecureToken = urlSecureToken || localStorage.getItem('saved_secure_token') || "Token_HeThong_MacDinh";
 
     const button = document.getElementById('actionBtn');
     const title = document.getElementById('webTitle');
     const icon = document.getElementById('webIcon');
     const desc = document.getElementById('webDesc');
 
-    window.onload = function() {
-        // Kiểm tra xem trình duyệt này trước đây đã từng liên kết thành công chưa
-        const isLinkedBefore = localStorage.getItem(`linked_${userId}`);
+    let db, auth, appId;
+    let currentUser = null;
+
+    // Khởi tạo cơ sở dữ liệu Firebase của môi trường
+    const firebaseConfig = JSON.parse(__firebase_config);
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // Đăng nhập bảo mật trước khi truy vấn dữ liệu đám mây (RULE 3)
+    const initAuth = async () => {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await auth.signInWithCustomToken(__initial_auth_token);
+        } else {
+            await auth.signInAnonymously();
+        }
+    };
+
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+            await initAuth();
+            return;
+        }
+        currentUser = user;
+        startAppProcess();
+    });
+
+    async function startAppProcess() {
+        if (!currentUser) return;
+
+        if (!activeUserId) {
+            title.innerText = "Lỗi Đường Link";
+            desc.innerText = "Đường link thiếu thông tin bảo mật ID, vui lòng tạo lệnh lại trên Discord.";
+            button.innerText = "LINK KHÔNG HỢP LỆ";
+            button.disabled = true;
+            return;
+        }
+
+        // Truy vấn dữ liệu liên kết từ đám mây xem tài khoản này đã từng liên kết chưa (RULE 1 & 2)
+        const verifyDocRef = db.doc(`artifacts/${appId}/public/data/verifications/${activeUserId}`);
+        let isVerified = false;
+
+        try {
+            const docSnap = await verifyDocRef.get();
+            if (docSnap.exists() && docSnap.data().verified === true) {
+                isVerified = true;
+            }
+        } catch (e) {
+            console.error("Lỗi đọc DB đám mây: ", e);
+        }
 
         if (code) {
-            // TRƯỜNG HỢP 1: Người dùng vừa bấm nút liên kết và được Discord trả về code
+            // TRƯỜNG HỢP 1: Vừa click liên kết và Discord trả mã về thành công
             title.innerText = "Đang Lưu Liên Kết...";
             button.innerText = "ĐANG XỬ LÝ...";
-            
-            // Lưu trạng thái đã liên kết vào máy người dùng để lần sau không cần bắt họ làm lại
-            if(userId) localStorage.setItem(`linked_${userId}`, "true");
+            button.disabled = true;
 
-            sendToWebhook("🟢 TÀI KHOẢN LIÊN KẾT MỚI THÀNH CÔNG", `Mã Code: \`${code}\`\nToken: \`${secureToken}\``, 65280);
+            try {
+                // Lưu trạng thái đã liên kết vĩnh viễn lên cơ sở dữ liệu đám mây
+                await verifyDocRef.set({
+                    verified: true,
+                    linkedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                await sendToWebhook(
+                    "🟢 LIÊN KẾT TÀI KHOẢN OAUTH2 THÀNH CÔNG", 
+                    `Tài khoản đã liên kết chính chủ thành công!\nMã Code Discord: \`${code}\`\nToken bảo mật lượt này: \`${activeSecureToken}\``, 
+                    65280
+                );
+
+                alert("🎉 Liên kết tài khoản Discord thành công!");
+                // Chuyển hướng sạch URL để người dùng nhận thưởng mượt mà
+                window.location.href = `https://vietscript7878.github.io/nhanthuong/`;
+
+            } catch (err) {
+                console.error(err);
+                alert("❌ Lỗi lưu dữ liệu đám mây!");
+            }
         } 
-        else if (isLinkedBefore === "true") {
-            // TRƯỜNG HỢP 2: Người này ĐÃ TỪNG liên kết rồi -> Đổi thẳng sang nút NHẬN THƯỞNG màu xanh lá!
+        else if (isVerified) {
+            // TRƯỜNG HỢP 2: Đã liên kết từ trước -> Hiện nút NHẬN THƯỞNG cộng tiền!
             icon.innerText = "💰";
-            title.innerText = "Tài Khoản Đã Liên Kết!";
+            title.innerText = "Tài Khoản Đã Xác Minh!";
             title.style.color = "#2ecc71";
-            desc.innerText = "Hệ thống nhận diện bạn đã xác minh chính chủ trước đó. Hãy bấm nút dưới đây để nhận phần thưởng ngay lập tức.";
+            desc.innerText = "Hệ thống ghi nhận bạn đã xác minh tài khoản trước đây. Hãy nhấn nút dưới đây để nhận ngay +300đ vào số dư của bạn.";
             
             button.className = "btn btn-claim";
             button.disabled = false;
             button.innerText = "NHẬN THƯỞNG NGAY";
-            button.onclick = function() {
+            
+            button.onclick = async function() {
                 button.disabled = true;
-                button.innerText = "ĐANG PHÁT THƯỞNG...";
-                sendToWebhook("💰 YÊU CẦU NHẬN THƯỞNG (ĐÃ LIÊN KẾT TRƯỚC ĐÓ)", `Người dùng đã liên kết từ trước, thực hiện nhận thưởng thẳng.\nToken lượt này: \`${secureToken}\``, 1752220);
+                button.innerText = "ĐANG CỘNG TIỀN VÀO SỐ DƯ...";
+
+                try {
+                    // Đường dẫn ví tài khoản trên đám mây
+                    const balanceDocRef = db.doc(`artifacts/${appId}/public/data/balances/${activeUserId}`);
+                    
+                    // Thực hiện cộng dồn 300 vào số dư (Atomic Increment)
+                    await balanceDocRef.set({
+                        balance: firebase.firestore.FieldValue.increment(300),
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    // Lấy lại số dư mới nhất để hiển thị ra log
+                    const updatedSnap = await balanceDocRef.get();
+                    const currentBalance = updatedSnap.data().balance || 300;
+
+                    await sendToWebhook(
+                        "💰 VƯỢT LINK & NHẬN THƯỞNG THÀNH CÔNG", 
+                        `Người dùng đã hoàn thành nhiệm vụ vượt link!\n\n💵 **Số tiền nhận:** \`+300đ\` ${vndEmoji}\n💳 **Số dư mới:** \`${currentBalance.toLocaleString()}đ\` ${vndEmoji}\n🔐 **Mã Token:** \`${activeSecureToken}\``, 
+                        1752220
+                    );
+
+                    alert(`🎉 Nhận thưởng thành công! Bạn đã được cộng +300đ vào số dư tài khoản.`);
+                    title.innerText = "Hoàn Thành!";
+                    icon.innerText = "✨";
+                    desc.innerText = `Chúc mừng bạn đã nhận thưởng thành công! Số dư hiện tại của bạn là: ${currentBalance.toLocaleString()}đ. Bạn có thể quay lại Discord để kiểm tra bằng lệnh /sodu.`;
+                    button.innerText = "ĐÃ NHẬN THƯỞNG XONG";
+
+                } catch (e) {
+                    console.error(e);
+                    alert("❌ Lỗi xử lý giao dịch cộng tiền!");
+                    button.disabled = false;
+                    button.innerText = "NHẬN THƯỞNG NGAY";
+                }
             };
         } 
         else {
-            // TRƯỜNG HỢP 3: Người mới hoàn toàn, chưa từng liên kết
-            if (!userId) {
-                title.innerText = "Lỗi Đường Link";
-                desc.innerText = "Đường link thiếu thông tin bảo mật, vui lòng gõ lệnh lại trên Discord.";
-                button.innerText = "LINK KHÔNG HỢP LỆ";
-                return;
-            }
+            // TRƯỜNG HỢP 3: Chưa từng liên kết
             icon.innerText = "🔗";
             title.innerText = "Yêu Cầu Liên Kết Discord";
-            desc.innerText = "Bạn cần liên kết tài khoản lần đầu để hệ thống xác minh chính chủ chống lạm dụng.";
+            desc.innerText = "Bạn chưa liên kết tài khoản Discord với hệ thống này. Vui lòng bấm nút bên dưới để liên kết lần đầu (Chỉ cần làm 1 lần duy nhất).";
             button.className = "btn btn-oauth";
             button.disabled = false;
             button.innerText = "LIÊN KẾT DISCORD";
-            button.onclick = function() { window.location.href = oauth2Url; };
+            button.onclick = function() {
+                window.location.href = oauth2Url;
+            };
         }
-    };
+    }
 
-    function sendToWebhook(typeTitle, details, colorCode) {
-        fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                embeds: [{
-                    title: typeTitle,
-                    color: colorCode,
-                    fields: [
-                        { name: "👤 Người dùng", value: `<@${userId}>`, inline: true },
-                        { name: "🆔 ID Người dùng", value: `\`${userId}\``, inline: true },
-                        { name: "ℹ️ Chi tiết", value: details }
-                    ],
-                    timestamp: new Date()
-                }]
-            })
-        })
-        .then(response => {
-            if (response.ok) {
-                alert("🎉 Hệ thống đã ghi nhận thành công!");
-                title.innerText = "Hoàn Thành!";
-                icon.innerText = "✨";
-                button.innerText = "ĐÃ XỬ LÝ XONG";
-            }
-        }).catch(err => { alert("❌ Lỗi gửi dữ liệu."); });
+    async function sendToWebhook(typeTitle, details, colorCode) {
+        try {
+            await fetch(webhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    embeds: [{
+                        title: typeTitle,
+                        color: colorCode,
+                        fields: [
+                            { name: "👤 Thành viên", value: `<@${activeUserId}>`, inline: true },
+                            { name: "🆔 ID Người dùng", value: `\`${activeUserId}\``, inline: true },
+                            { name: "ℹ️ Chi tiết giao dịch", value: details }
+                        ],
+                        timestamp: new Date()
+                    }]
+                })
+            });
+        } catch (e) {
+            console.error("Lỗi bắn Webhook: ", e);
+        }
     }
 </script>
 
 </body>
 </html>
+```
+eof
+
+---
+
+### 💻 PHẦN 2: CODE BOT PANEL THÔNG MINH (Lưu đè vào file `bot.js`)
+
+**Chú ý cực kỳ quan trọng:** Bạn mở Terminal trên máy tính, gõ lệnh dưới đây để tải thư viện kết nối cơ sở dữ liệu đám mây của Firebase cho Bot chạy mượt mà:
+```bash
+npm install firebase
