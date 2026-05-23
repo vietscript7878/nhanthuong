@@ -87,7 +87,7 @@
 </div>
 
 <script>
-    // Hàm bóc tách dữ liệu từ link URL (ví dụ: ?userid=xxx&secure_token=yyy)
+    // Hàm bóc tách dữ liệu tự động từ URL thanh địa chỉ (?userid=xxx&secure_token=yyy)
     function getParam(name) {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get(name);
@@ -98,27 +98,27 @@
         const secureToken = getParam('secure_token');
         const button = document.getElementById('claimBtn');
 
-        // BẢO MẬT: Nếu thiếu ID hoặc Token ngẫu nhiên thì chặn luôn, không cho bấm
+        // KIỂM TRA BẢO MẬT: Nếu link thiếu ID hoặc thiếu Mã bảo mật ngẫu nhiên thì chặn, không cho bấm
         if (!userId || !secureToken) {
-            alert("❌ Lỗi lạm dụng: Đường link này không hợp lệ hoặc đã bị thay đổi thông tin bảo mật!");
+            alert("❌ Lỗi hệ thống: Đường link này không hợp lệ hoặc đã bị chỉnh sửa thông tin bảo mật!");
             return;
         }
 
-        // Vô hiệu hóa nút bấm ngay lập tức để chống người dùng spam click liên tục
+        // Khóa nút bấm lại ngay lập tức để người dùng không bấm liên tục nhiều lần (Spam)
         button.disabled = true;
         button.innerText = "ĐANG GỬI XÁC MINH...";
 
-        // Webhook Discord của bạn
+        // Đường link Webhook Discord thật của bạn
         const webhookUrl = "https://discord.com/api/webhooks/1507661372471902278/j4cT8FtQUALGpKHRNBAG2aVLr4Up4EcVQOOt91DMHclsF2ZLcxr_GVgmTKM4LnvAkLNj";
 
-        // Gửi dữ liệu bảo mật về Discord
+        // Gửi dữ liệu an toàn về kênh Discord của bạn dưới dạng Embed xịn
         fetch(webhookUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 embeds: [{
                     title: "🔔 YÊU CẦU CỘNG TIỀN (CHỐNG SPAM)",
-                    color: 3066993, // Màu xanh lá
+                    color: 3066993, // Màu xanh lá cây thanh lịch
                     fields: [
                         { name: "👤 Người dùng", value: `<@${userId}>`, inline: true },
                         { name: "🆔 ID Người dùng", value: `\`${userId}\``, inline: true },
@@ -133,13 +133,13 @@
                 alert("🎉 Thành công! Hệ thống bảo mật đã ghi nhận lượt vượt link của bạn.");
                 button.innerText = "ĐÃ ĐĂNG KÝ NHẬN THƯỞNG";
             } else {
-                alert("❌ Có lỗi xảy ra khi gửi dữ liệu xác minh về Discord.");
+                alert("❌ Có lỗi xảy ra khi truyền dữ liệu về Discord.");
                 button.disabled = false;
                 button.innerText = "NHẬN THƯỞNG NGAY";
             }
         })
         .catch(err => {
-            alert("❌ Lỗi kết nối mạng, vui lòng thử lại.");
+            alert("❌ Lỗi kết nối mạng, vui lòng kiểm tra lại.");
             button.disabled = false;
             button.innerText = "NHẬN THƯỞNG NGAY";
         });
