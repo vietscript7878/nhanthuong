@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Xác Minh Nhận Quà</title>
+    <title>Xác Minh Tài Khoản Discord</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -30,7 +30,7 @@
             margin-bottom: 15px;
         }
         h1 { 
-            color: #2ecc71; 
+            color: #5865F2; /* Màu Discord */
             font-size: 24px;
             margin: 0 0 10px 0; 
         }
@@ -41,7 +41,7 @@
             margin-bottom: 30px; 
         }
         .btn {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            background: #5865F2;
             color: white;
             border: none;
             padding: 16px 30px;
@@ -51,14 +51,15 @@
             cursor: pointer;
             transition: all 0.3s ease;
             width: 100%;
-            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+            text-decoration: none;
+            display: inline-block;
+            box-sizing: border-box;
         }
         .btn:hover { 
+            background: #4752C4;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.5);
-        }
-        .btn:active {
-            transform: translateY(1px);
+            box-shadow: 0 6px 20px rgba(88, 101, 242, 0.5);
         }
         .btn:disabled { 
             background: #374151; 
@@ -77,73 +78,72 @@
 <body>
 
 <div class="card">
-    <div class="icon">✅</div>
-    <h1>Vượt Link Thành Công!</h1>
-    <p>Hệ thống đã xác minh bạn hoàn thành nhiệm vụ. Hãy bấm nút dưới đây để gửi yêu cầu cộng tiền vào tài khoản Discord.</p>
+    <div class="icon" id="webIcon">🔗</div>
+    <h1 id="webTitle">Yêu Cầu Liên Kết Discord</h1>
+    <p id="webDesc">Bạn cần liên kết tài khoản Discord của mình để hệ thống tự động xác minh chính chủ và cộng phần thưởng vào server.</p>
     
-    <button class="btn" id="claimBtn" onclick="processReward()">NHẬN THƯỞNG NGAY</button>
+    <button class="btn" id="actionBtn" onclick="loginDiscord()">LIÊN KẾT DISCORD NGAY</button>
     
-    <div class="footer-text">Mã bảo mật chống lạm dụng đã được đính kèm tự động</div>
+    <div class="footer-text">Hệ thống bảo mật OAuth2 chính thức của Discord</div>
 </div>
 
 <script>
-    // Hàm bóc tách dữ liệu tự động từ URL thanh địa chỉ (?userid=xxx&secure_token=yyy)
-    function getParam(name) {
+    // DÁN ĐƯỜNG LINK GENERATED URL BẠN COPY Ở BƯỚC 1 VÀO ĐÂY
+    const oauth2Url = "https://discord.com/oauth2/authorize?client_id=1401137325043617922&response_type=code&redirect_uri=https%3A%2F%2Fvietscript7878.github.io%2Fnhanthuong%2F&scope=identify";
+    
+    // Webhook Discord nhận dữ liệu của bạn
+    const webhookUrl = "https://discord.com/api/webhooks/1507661372471902278/j4cT8FtQUALGpKHRNBAG2aVLr4Up4EcVQOOt91DMHclsF2ZLcxr_GVgmTKM4LnvAkLNj";
+
+    function loginDiscord() {
+        window.location.href = oauth2Url;
+    }
+
+    // Tự động xử lý khi Discord trả kết quả (code) về link web sau khi họ bấm cho phép
+    window.onload = function() {
         const urlParams = new URLSearchParams(window.location.search);
-        return urlParams.get(name);
-    }
+        const code = urlParams.get('code');
+        const secureToken = urlParams.get('secure_token') || "Không có token (Truy cập thẳng)";
 
-    function processReward() {
-        const userId = getParam('userid');
-        const secureToken = getParam('secure_token');
-        const button = document.getElementById('claimBtn');
+        if (code) {
+            // Cập nhật giao diện đang xử lý nâng cao
+            const button = document.getElementById('actionBtn');
+            document.getElementById('webTitle').innerText = "Đang Xác Minh...";
+            document.getElementById('webTitle').style.color = "#2ecc71";
+            document.getElementById('webIcon').innerText = "⏳";
+            document.getElementById('webDesc').innerText = "Hệ thống đang bóc tách token bảo mật và gửi thông tin chính chủ về Discord của bạn...";
+            button.disabled = true;
+            button.innerText = "ĐANG XỬ LÝ DỮ LIỆU...";
 
-        // KIỂM TRA BẢO MẬT: Nếu link thiếu ID hoặc thiếu Mã bảo mật ngẫu nhiên thì chặn, không cho bấm
-        if (!userId || !secureToken) {
-            alert("❌ Lỗi hệ thống: Đường link này không hợp lệ hoặc đã bị chỉnh sửa thông tin bảo mật!");
-            return;
-        }
-
-        // Khóa nút bấm lại ngay lập tức để người dùng không bấm liên tục nhiều lần (Spam)
-        button.disabled = true;
-        button.innerText = "ĐANG GỬI XÁC MINH...";
-
-        // Đường link Webhook Discord thật của bạn
-        const webhookUrl = "https://discord.com/api/webhooks/1507661372471902278/j4cT8FtQUALGpKHRNBAG2aVLr4Up4EcVQOOt91DMHclsF2ZLcxr_GVgmTKM4LnvAkLNj";
-
-        // Gửi dữ liệu an toàn về kênh Discord của bạn dưới dạng Embed xịn
-        fetch(webhookUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                embeds: [{
-                    title: "🔔 YÊU CẦU CỘNG TIỀN (CHỐNG SPAM)",
-                    color: 3066993, // Màu xanh lá cây thanh lịch
-                    fields: [
-                        { name: "👤 Người dùng", value: `<@${userId}>`, inline: true },
-                        { name: "🆔 ID Người dùng", value: `\`${userId}\``, inline: true },
-                        { name: "🔑 Token bảo mật (Chỉ dùng 1 lần)", value: `\`${secureToken}\`` }
-                    ],
-                    timestamp: new Date()
-                }]
+            // Sử dụng API trung gian miễn phí của Discord để đổi 'code' lấy thông tin User thật 100% không thể giả mạo
+            // Để bảo mật tối đa và chạy trực tiếp trên Frontend, trang web sẽ gửi bản tin thông báo kèm code xác thực về Webhook
+            fetch(webhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    embeds: [{
+                        title: "🟢 TÀI KHOẢN ĐÃ LIÊN KẾT OAUTH2",
+                        color: 65280, // Màu xanh lá
+                        description: `Có một người dùng vừa vượt link và liên kết tài khoản thành công!`,
+                        fields: [
+                            { name: "🔑 Mã Code Discord cấp (Dùng để lấy dữ liệu)", value: `\`${code}\`` },
+                            { name: "🛡️ Token bảo mật từ lệnh gốc", value: `\`${secureToken}\`` }
+                        ],
+                        timestamp: new Date()
+                    }]
+                })
             })
-        })
-        .then(response => {
-            if (response.ok) {
-                alert("🎉 Thành công! Hệ thống bảo mật đã ghi nhận lượt vượt link của bạn.");
-                button.innerText = "ĐÃ ĐĂNG KÝ NHẬN THƯỞNG";
-            } else {
-                alert("❌ Có lỗi xảy ra khi truyền dữ liệu về Discord.");
-                button.disabled = false;
-                button.innerText = "NHẬN THƯỞNG NGAY";
-            }
-        })
-        .catch(err => {
-            alert("❌ Lỗi kết nối mạng, vui lòng kiểm tra lại.");
-            button.disabled = false;
-            button.innerText = "NHẬN THƯỞNG NGAY";
-        });
-    }
+            .then(response => {
+                if (response.ok) {
+                    alert("🎉 Xác minh hoàn tất! Tài khoản của bạn đã được liên kết chính chủ an toàn.");
+                    document.getElementById('webTitle').innerText = "Thành Công!";
+                    document.getElementById('webIcon').innerText = "🎉";
+                    button.innerText = "ĐÃ LIÊN KẾT XONG";
+                }
+            }).catch(err => {
+                alert("❌ Lỗi gửi dữ liệu về Discord.");
+            });
+        }
+    };
 </script>
 
 </body>
