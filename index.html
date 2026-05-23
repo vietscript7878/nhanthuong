@@ -1,305 +1,230 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Xác Minh Phần Thưởng</title>
-    <!-- Tích hợp Firebase SDK Compat để kết nối Cơ sở dữ liệu đám mây -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
-    
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #0f1115;
-            color: #ffffff;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .card {
-            text-align: center;
-            background: #1a1d24;
-            padding: 40px;
-            border-radius: 16px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
-            max-width: 400px;
-            width: 100%;
-            border: 1px solid #2d323f;
-        }
-        .icon {
-            font-size: 50px;
-            margin-bottom: 15px;
-        }
-        h1 { 
-            color: #5865F2; 
-            font-size: 24px;
-            margin: 0 0 10px 0; 
-        }
-        p { 
-            color: #9ca3af; 
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 30px; 
-        }
-        .btn {
-            color: white;
-            border: none;
-            padding: 16px 30px;
-            font-size: 16px;
-            font-weight: bold;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: 100%;
-            box-sizing: border-box;
-        }
-        .btn-oauth {
-            background: #5865F2;
-            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
-        }
-        .btn-oauth:hover { background: #4752C4; transform: translateY(-2px); }
-        
-        .btn-claim {
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
-            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
-        }
-        .btn-claim:hover { background: #219a52; transform: translateY(-2px); }
+const { Client, GatewayIntentBits, SlashCommandBuilder, REST, Routes, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const axios = require('axios');
+const crypto = require('crypto');
 
-        .btn:disabled { 
-            background: #374151 !important; 
-            color: #9ca3af;
-            cursor: not-allowed; 
-            box-shadow: none;
-            transform: none;
-        }
-        .footer-text {
-            margin-top: 20px;
-            font-size: 11px;
-            color: #4b5563;
-        }
-    </style>
-</head>
-<body>
+// Tải thư viện Firebase để Bot kết nối thời gian thực tới ví tiền của web đám mây
+const { initializeApp } = require('firebase/app');
+const { getAuth, signInAnonymously } = require('firebase/auth');
+const { getFirestore, doc, getDoc } = require('firebase/firestore');
 
-<div class="card">
-    <div class="icon" id="webIcon">⏳</div>
-    <h1 id="webTitle">Đang Khởi Động...</h1>
-    <p id="webDesc">Đang kết nối hệ thống dữ liệu bảo mật...</p>
-    
-    <button class="btn btn-oauth" id="actionBtn" disabled>VUI LÒNG ĐỢI...</button>
-    
-    <div class="footer-text">Hệ thống cơ sở dữ liệu đám mây chống lạm dụng</div>
-</div>
+// Khởi tạo Client cho Bot Discord
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
-<script>
-    // Link OAuth2 Discord của bạn
-    const oauth2Url = "https://discord.com/oauth2/authorize?client_id=1401137325043617922&response_type=code&redirect_uri=https%3A%2F%2Fvietscript7878.github.io%2Fnhanthuong%2F&scope=identify";
-    
-    // Webhook nhận log chính thức (Đã cập nhật theo yêu cầu của bạn)
-    const webhookUrl = "https://discord.com/api/webhooks/1507677264643493939/juWE5-FztMPxHbglQNSlDgmhG0-8e72Kmw0ZJEfqduBY1RcMfH1Lqh5esagw7slH2rW5";
+// ==========================================
+//    PHẦN CẤU HÌNH THÔNG TIN (BẠN TỰ SỬA)
+// ==========================================
+const BOT_TOKEN = 'MTQwMTEzNzMyNTA0MzYxNzkyMg.GXYD1L.t9oeOJSiPr0Mv2obPuzWlSkTZI2HshTD8-PBXI';
+const BOT_ID = '1401137325043617922'; 
 
-    // Emoji custom của bạn
-    const vndEmoji = "<:vnd:1507677930556231710>";
+// Thông tin API Yeumoney rút gọn link kiếm tiền
+const YEUMONEY_TOKEN = '8339f88b96a5dac23b72e4a16554d42509f3936f53561cc55ef661b98b4d5e0f'; 
+const YEUMONEY_API_URL = 'https://yeumoney.com/QL_api.php';
 
-    // Đọc tham số URL ban đầu
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlUserId = urlParams.get('userid');
-    const urlSecureToken = urlParams.get('secure_token');
-    const code = urlParams.get('code');
+// Link trang web chính thức trên GitHub Pages của bạn
+const GITHUB_URL = 'https://vietscript7878.github.io/nhanthuong/';
 
-    // NẾU CÓ THAM SỐ TRÊN URL -> LƯU NGAY VÀO BỘ NHỚ ĐỆM ĐỂ CHỐNG MẤT KHI REDIRECT
-    if (urlUserId) localStorage.setItem('saved_userid', urlUserId);
-    if (urlSecureToken) localStorage.setItem('saved_secure_token', urlSecureToken);
+// Webhook dùng chung cho tất cả lệnh hệ thống (Đã cập nhật theo yêu cầu của bạn)
+const WEBHOOK_URL = 'https://discord.com/api/webhooks/1507677264643493939/juWE5-FztMPxHbglQNSlDgmhG0-8e72Kmw0ZJEfqduBY1RcMfH1Lqh5esagw7slH2rW5';
 
-    // LẤY DỮ LIỆU ĐÃ SAO LƯU AN TOÀN
-    const activeUserId = urlUserId || localStorage.getItem('saved_userid');
-    const activeSecureToken = urlSecureToken || localStorage.getItem('saved_secure_token') || "Token_HeThong_MacDinh";
+// Định dạng Emoji VND của bạn
+const VND_EMOJI = '<:vnd:1507677930556231710>';
 
-    const button = document.getElementById('actionBtn');
-    const title = document.getElementById('webTitle');
-    const icon = document.getElementById('webIcon');
-    const desc = document.getElementById('webDesc');
+// Cấu hình Firebase dự phòng
+const firebaseConfig = {
+    apiKey: "", // Môi trường sẽ tự cấp key khi chạy trên server
+    authDomain: "default-app-id.firebaseapp.com",
+    projectId: "default-app-id", 
+    storageBucket: "default-app-id.appspot.com",
+    messagingSenderId: "123456789",
+    appId: "1:123456789:web:123456"
+};
 
-    let db, auth, appId;
-    let currentUser = null;
+let app, auth, db;
+let appId = 'default-app-id';
+let firebaseReady = false;
 
-    // Khởi tạo cơ sở dữ liệu Firebase của môi trường
-    const firebaseConfig = JSON.parse(__firebase_config);
-    firebase.initializeApp(firebaseConfig);
-    auth = firebase.auth();
-    db = firebase.firestore();
-    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// Khởi tạo Firebase an toàn chống sập khi chạy offline cục bộ
+try {
+    const configToUse = typeof __firebase_config !== 'undefined' 
+        ? JSON.parse(__firebase_config) 
+        : firebaseConfig;
 
-    // Đăng nhập bảo mật trước khi truy vấn dữ liệu đám mây (RULE 3)
-    const initAuth = async () => {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-            await auth.signInWithCustomToken(__initial_auth_token);
-        } else {
-            await auth.signInAnonymously();
-        }
-    };
+    if (configToUse && configToUse.apiKey) {
+        app = initializeApp(configToUse);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        firebaseReady = true;
+    } else {
+        console.log('⚠️ Không tìm thấy API Key của Firebase. Chức năng số dư (/sodu) sẽ tạm thời tắt khi chạy offline trên máy tính.');
+    }
+} catch (error) {
+    console.log('⚠️ Firebase chưa được cấu hình hoặc gặp lỗi khởi tạo:', error.message);
+}
 
-    auth.onAuthStateChanged(async (user) => {
-        if (!user) {
-            await initAuth();
-            return;
-        }
-        currentUser = user;
-        startAppProcess();
-    });
+// Đăng nhập đám mây ẩn danh cho bot (RULE 3)
+async function initBotFirebase() {
+    if (!firebaseReady || !auth) return;
+    try {
+        await signInAnonymously(auth);
+        console.log('🔥 Đã kết nối Cơ sở dữ liệu đám mây cho Bot thành công!');
+    } catch (e) {
+        console.log('⚠️ Cảnh báo: Lỗi đăng nhập Firebase.');
+    }
+}
 
-    async function startAppProcess() {
-        if (!currentUser) return;
+client.once('ready', async () => {
+    console.log(`🤖 Bot Smart Panel Đã Onl! Đang chạy tài khoản: ${client.user.tag}`);
+    await initBotFirebase();
+});
 
-        if (!activeUserId) {
-            title.innerText = "Lỗi Đường Link";
-            desc.innerText = "Đường link thiếu thông tin bảo mật ID, vui lòng tạo lệnh lại trên Discord.";
-            button.innerText = "LINK KHÔNG HỢP LỆ";
-            button.disabled = true;
-            return;
-        }
+// ==========================================
+//          XỬ LÝ CÁC TƯƠNG TÁC LỆNH
+// ==========================================
+client.on('interactionCreate', async interaction => {
+    if (!interaction.isChatInputCommand()) return;
 
-        // Truy vấn dữ liệu liên kết từ đám mây xem tài khoản này đã từng liên kết chưa (RULE 1 & 2)
-        const verifyDocRef = db.doc(`artifacts/${appId}/public/data/verifications/${activeUserId}`);
-        let isVerified = false;
+    const userId = interaction.user.id;
+    const username = interaction.user.username;
+
+    // --- LỆNH 1: /VUOTLINK ---
+    if (interaction.commandName === 'vuotlink') {
+        await interaction.deferReply({ ephemeral: false });
+
+        const secureToken = crypto.randomBytes(16).toString('hex'); 
+        const myWebsiteUrl = `${GITHUB_URL}?userid=${userId}&secure_token=${secureToken}`; 
 
         try {
-            const docSnap = await verifyDocRef.get();
-            if (docSnap.exists() && docSnap.data().verified === true) {
-                isVerified = true;
-            }
-        } catch (e) {
-            console.error("Lỗi đọc DB đám mây: ", e);
-        }
+            // Gọi API Yeumoney
+            const response = await axios.get(YEUMONEY_API_URL, {
+                params: {
+                    token: YEUMONEY_TOKEN,
+                    format: 'json',
+                    url: myWebsiteUrl
+                }
+            });
 
-        if (code) {
-            // TRƯỜNG HỢP 1: Vừa click liên kết và Discord trả mã về thành công
-            title.innerText = "Đang Lưu Liên Kết...";
-            button.innerText = "ĐANG XỬ LÝ...";
-            button.disabled = true;
+            if (response.data && response.data.status === 'success') {
+                const shortenedUrl = response.data.shortenedUrl;
 
-            try {
-                // Lưu trạng thái đã liên kết vĩnh viễn lên cơ sở dữ liệu đám mây
-                await verifyDocRef.set({
-                    verified: true,
-                    linkedAt: firebase.firestore.FieldValue.serverTimestamp()
-                });
+                // 1. TẠO PANEL EMBED
+                const panelEmbed = new EmbedBuilder()
+                    .setColor('#2ecc71') 
+                    .setTitle('✅ Tạo Link Vượt Thành Công') 
+                    .setDescription('👇 *Hãy click nút phía dưới để bắt đầu vượt link kiếm tiền và nhận thưởng*') 
+                    .addFields(
+                        { name: '👤 Người tạo:', value: `\`${username}\``, inline: true },
+                        { name: '🆔 ID Discord:', value: `\`${userId}\``, inline: true },
+                        { name: '💸 Giá trị lượt vượt:', value: `\`+300đ\` ${VND_EMOJI}`, inline: false },
+                        { name: '📈 Trạng Thế:', value: '`⏳ Đang chờ bạn vượt link...`', inline: false }
+                    )
+                    .setFooter({ text: 'Hệ thống tự động cộng dồn số dư ví' })
+                    .setTimestamp();
 
-                await sendToWebhook(
-                    "🟢 LIÊN KẾT TÀI KHOẢN OAUTH2 THÀNH CÔNG", 
-                    `Tài khoản đã liên kết chính chủ thành công!\nMã Code Discord: \`${code}\`\nToken bảo mật lượt này: \`${activeSecureToken}\``, 
-                    65280
+                // 2. NÚT BẤM CHUYỂN HƯỚNG
+                const buttonRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('Đi đến link vượt 🚀') 
+                        .setStyle(ButtonStyle.Link) 
+                        .setURL(shortenedUrl) 
                 );
 
-                alert("🎉 Liên kết tài khoản Discord thành công!");
-                // Chuyển hướng sạch URL để người dùng nhận thưởng mượt mà
-                window.location.href = `https://vietscript7878.github.io/nhanthuong/`;
+                // Gửi Panel công khai cho cả kênh nhìn thấy
+                await interaction.editReply({
+                    embeds: [panelEmbed],
+                    components: [buttonRow]
+                });
 
-            } catch (err) {
-                console.error(err);
-                alert("❌ Lỗi lưu dữ liệu đám mây!");
-            }
-        } 
-        else if (isVerified) {
-            // TRƯỜNG HỢP 2: Đã liên kết từ trước -> Hiện nút NHẬN THƯỞNG cộng tiền!
-            icon.innerText = "💰";
-            title.innerText = "Tài Khoản Đã Xác Minh!";
-            title.style.color = "#2ecc71";
-            desc.innerText = "Hệ thống ghi nhận bạn đã xác minh tài khoản trước đây. Hãy nhấn nút dưới đây để nhận ngay +300đ vào số dư của bạn.";
-            
-            button.className = "btn btn-claim";
-            button.disabled = false;
-            button.innerText = "NHẬN THƯỞNG NGAY";
-            
-            button.onclick = async function() {
-                button.disabled = true;
-                button.innerText = "ĐANG CỘNG TIỀN VÀO SỐ DƯ...";
-
-                try {
-                    // Đường dẫn ví tài khoản trên đám mây
-                    const balanceDocRef = db.doc(`artifacts/${appId}/public/data/balances/${activeUserId}`);
-                    
-                    // Thực hiện cộng dồn 300 vào số dư (Atomic Increment)
-                    await balanceDocRef.set({
-                        balance: firebase.firestore.FieldValue.increment(300),
-                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                    }, { merge: true });
-
-                    // Lấy lại số dư mới nhất để hiển thị ra log
-                    const updatedSnap = await balanceDocRef.get();
-                    const currentBalance = updatedSnap.data().balance || 300;
-
-                    await sendToWebhook(
-                        "💰 VƯỢT LINK & NHẬN THƯỞNG THÀNH CÔNG", 
-                        `Người dùng đã hoàn thành nhiệm vụ vượt link!\n\n💵 **Số tiền nhận:** \`+300đ\` ${vndEmoji}\n💳 **Số dư mới:** \`${currentBalance.toLocaleString()}đ\` ${vndEmoji}\n🔐 **Mã Token:** \`${activeSecureToken}\``, 
-                        1752220
-                    );
-
-                    alert(`🎉 Nhận thưởng thành công! Bạn đã được cộng +300đ vào số dư tài khoản.`);
-                    title.innerText = "Hoàn Thành!";
-                    icon.innerText = "✨";
-                    desc.innerText = `Chúc mừng bạn đã nhận thưởng thành công! Số dư hiện tại của bạn là: ${currentBalance.toLocaleString()}đ. Bạn có thể quay lại Discord để kiểm tra bằng lệnh /sodu.`;
-                    button.innerText = "ĐÃ NHẬN THƯỞNG XONG";
-
-                } catch (e) {
-                    console.error(e);
-                    alert("❌ Lỗi xử lý giao dịch cộng tiền!");
-                    button.disabled = false;
-                    button.innerText = "NHẬN THƯỞNG NGAY";
-                }
-            };
-        } 
-        else {
-            // TRƯỜNG HỢP 3: Chưa từng liên kết
-            icon.innerText = "🔗";
-            title.innerText = "Yêu Cầu Liên Kết Discord";
-            desc.innerText = "Bạn chưa liên kết tài khoản Discord với hệ thống này. Vui lòng bấm nút bên dưới để liên kết lần đầu (Chỉ cần làm 1 lần duy nhất).";
-            button.className = "btn btn-oauth";
-            button.disabled = false;
-            button.innerText = "LIÊN KẾT DISCORD";
-            button.onclick = function() {
-                window.location.href = oauth2Url;
-            };
-        }
-    }
-
-    async function sendToWebhook(typeTitle, details, colorCode) {
-        try {
-            await fetch(webhookUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+                // Gửi log về Webhook hệ thống
+                await axios.post(WEBHOOK_URL, {
                     embeds: [{
-                        title: typeTitle,
-                        color: colorCode,
+                        title: "🆕 YÊU CẦU TẠO LINK VƯỢT",
+                        color: 3447003,
                         fields: [
-                            { name: "👤 Thành viên", value: `<@${activeUserId}>`, inline: true },
-                            { name: "🆔 ID Người dùng", value: `\`${activeUserId}\``, inline: true },
-                            { name: "ℹ️ Chi tiết giao dịch", value: details }
+                            { name: "👤 Người dùng", value: `<@${userId}>`, inline: true },
+                            { name: "🆔 ID", value: `\`${userId}\``, inline: true },
+                            { name: "🔗 Link gốc", value: `[Bấm để xem](${myWebsiteUrl})` },
+                            { name: "💵 Phần thưởng chờ", value: `+300đ ${VND_EMOJI}` }
                         ],
                         timestamp: new Date()
                     }]
-                })
-            });
-        } catch (e) {
-            console.error("Lỗi bắn Webhook: ", e);
+                }).catch(() => {});
+
+            } else {
+                await interaction.editReply({ content: '❌ Lỗi hệ thống: Yeumoney không phản hồi.' });
+            }
+
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ content: '❌ Lỗi máy chủ hệ thống.' });
         }
     }
-</script>
 
-</body>
-</html>
-```
-eof
+    // --- LỆNH 2: /SODU (TRA CỨU VÍ TIỀN) ---
+    if (interaction.commandName === 'sodu') {
+        await interaction.deferReply({ ephemeral: true });
 
----
+        if (!firebaseReady || !db) {
+            return await interaction.editReply({ 
+                content: `⚠️ Lệnh \`/sodu\` hiện đang tạm tắt trên máy chủ cục bộ (Local) do chưa có cấu hình API Key của Firebase. Chức năng này sẽ hoạt động đầy đủ khi ứng dụng được đưa lên môi trường máy chủ chính thức!` 
+            });
+        }
 
-### 💻 PHẦN 2: CODE BOT PANEL THÔNG MINH (Lưu đè vào file `bot.js`)
+        try {
+            // Đọc dữ liệu ví tiền trực tiếp từ ví đám mây (RULE 1)
+            const balanceDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'balances', userId);
+            const docSnap = await getDoc(balanceDocRef);
+            
+            let balance = 0;
+            if (docSnap.exists()) {
+                balance = docSnap.data().balance || 0;
+            }
 
-**Chú ý cực kỳ quan trọng:** Bạn mở Terminal trên máy tính, gõ lệnh dưới đây để tải thư viện kết nối cơ sở dữ liệu đám mây của Firebase cho Bot chạy mượt mà:
-```bash
-npm install firebase
+            const infoEmbed = new EmbedBuilder()
+                .setColor('#f1c40f')
+                .setTitle('💳 THÔNG TIN VÍ SỐ DƯ')
+                .setDescription(`Chào **${username}**, dưới đây là số dư hiện tại của bạn tích lũy từ vượt link:`)
+                .addFields(
+                    { name: '💵 Tài khoản:', value: `<@${userId}>`, inline: true },
+                    { name: '💰 Số dư hiện tại:', value: `**${balance.toLocaleString()}đ** ${VND_EMOJI}`, inline: true }
+                )
+                .setFooter({ text: 'Số dư được cập nhật tự động tức thì' })
+                .setTimestamp();
+
+            await interaction.editReply({ embeds: [infoEmbed] });
+
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ content: `❌ Không thể truy vấn số dư lúc này. Bạn vui lòng vượt link nhận thưởng trước để tạo ví.` });
+        }
+    }
+});
+
+// ==========================================
+//      ĐĂNG KÝ SLASH COMMANDS VỚI DISCORD
+// ==========================================
+const commands = [
+    new SlashCommandBuilder()
+        .setName('vuotlink')
+        .setDescription('Tạo link vượt nhận thưởng 300đ/lần (Hiện công khai)'),
+    new SlashCommandBuilder()
+        .setName('sodu')
+        .setDescription('Kiểm tra số dư tích lũy hiện tại của bạn'),
+].map(command => command.toJSON());
+
+const rest = new REST({ version: '10' }).setToken(BOT_TOKEN);
+
+(async () => {
+    try {
+        console.log('🔄 Đang đăng ký các lệnh /vuotlink và /sodu...');
+        await rest.put(
+            Routes.applicationCommands(BOT_ID),
+            { body: commands },
+        );
+        console.log('✅ Hệ thống nạp lệnh thành công!');
+    } catch (error) {
+        console.error(error);
+    }
+})();
+
+client.login(BOT_TOKEN);
