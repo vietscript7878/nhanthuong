@@ -1,78 +1,308 @@
-<style>
-    body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #0f1115;
-        color: #ffffff;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
-        margin: 0;
-    }
-    .card {
-        text-align: center;
-        background: #1a1d24;
-        padding: 40px;
-        border-radius: 16px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.7);
-        max-width: 400px;
-        width: 100%;
-        border: 1px solid #2d323f;
-    }
-    .icon {
-        font-size: 50px;
-        margin-bottom: 15px;
-    }
-    h1 { 
-        color: #5865F2; 
-        font-size: 24px;
-        margin: 0 0 10px 0; 
-    }
-    p { 
-        color: #9ca3af; 
-        font-size: 14px;
-        line-height: 1.5;
-        margin-bottom: 30px; 
-    }
-    .btn {
-        color: white;
-        border: none;
-        padding: 16px 30px;
-        font-size: 16px;
-        font-weight: bold;
-        border-radius: 8px;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        width: 100%;
-        box-sizing: border-box;
-    }
-    .btn-oauth {
-        background: #5865F2;
-        box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
-    }
-    .btn-oauth:hover { background: #4752C4; transform: translateY(-2px); }
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Xác Minh Phần Thưởng</title>
+    <!-- Tích hợp Firebase SDK Compat để kết nối Cơ sở dữ liệu đám mây -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
     
-    .btn-claim {
-        background: linear-gradient(135deg, #2ecc71, #27ae60);
-        box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f1115;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .card {
+            text-align: center;
+            background: #1a1d24;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+            max-width: 400px;
+            width: 100%;
+            border: 1px solid #2d323f;
+        }
+        .icon {
+            font-size: 50px;
+            margin-bottom: 15px;
+        }
+        h1 { 
+            color: #5865F2; 
+            font-size: 24px;
+            margin: 0 0 10px 0; 
+        }
+        p { 
+            color: #9ca3af; 
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 30px; 
+        }
+        .btn {
+            color: white;
+            border: none;
+            padding: 16px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .btn-oauth {
+            background: #5865F2;
+            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
+        }
+        .btn-oauth:hover { background: #4752C4; transform: translateY(-2px); }
+        
+        .btn-claim {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+        }
+        .btn-claim:hover { background: #219a52; transform: translateY(-2px); }
+
+        .btn:disabled { 
+            background: #374151 !important; 
+            color: #9ca3af;
+            cursor: not-allowed; 
+            box-shadow: none;
+            transform: none;
+        }
+        .footer-text {
+            margin-top: 20px;
+            font-size: 11px;
+            color: #4b5563;
+        }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="icon" id="webIcon">⏳</div>
+    <h1 id="webTitle">Đang Khởi Động...</h1>
+    <p id="webDesc">Đang kết nối hệ thống dữ liệu bảo mật...</p>
+    
+    <button class="btn btn-oauth" id="actionBtn" disabled>VUI LÒNG ĐỢI...</button>
+    
+    <div class="footer-text">Hệ thống cơ sở dữ liệu đám mây chống lạm dụng</div>
+</div>
+
+<script>
+    // Link OAuth2 Discord của bạn
+    const oauth2Url = "https://discord.com/oauth2/authorize?client_id=1401137325043617922&response_type=code&redirect_uri=https%3A%2F%2Fvietscript7878.github.io%2Fnhanthuong%2F&scope=identify";
+    
+    // Webhook nhận log chính thức
+    const webhookUrl = "https://discord.com/api/webhooks/1507677264643493939/juWE5-FztMPxHbglQNSlDgmhG0-8e72Kmw0ZJEfqduBY1RcMfH1Lqh5esagw7slH2rW5";
+
+    // Emoji custom của bạn
+    const vndEmoji = "<:vnd:1507677930556231710>";
+
+    // Đọc tham số URL ban đầu
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlUserId = urlParams.get('userid');
+    const urlSecureToken = urlParams.get('secure_token');
+    const code = urlParams.get('code');
+
+    // NẾU CÓ THAM SỐ TRÊN URL -> LƯU NGAY VÀO BỘ NHỚ ĐỆM ĐỂ CHỐNG MẤT KHI REDIRECT DISCORD
+    if (urlUserId) localStorage.setItem('saved_userid', urlUserId);
+    if (urlSecureToken) localStorage.setItem('saved_secure_token', urlSecureToken);
+
+    // LẤY DỮ LIỆU ĐÃ SAO LƯU AN TOÀN
+    const activeUserId = urlUserId || localStorage.getItem('saved_userid');
+    const activeSecureToken = urlSecureToken || localStorage.getItem('saved_secure_token') || "Token_HeThong_MacDinh";
+
+    const button = document.getElementById('actionBtn');
+    const title = document.getElementById('webTitle');
+    const icon = document.getElementById('webIcon');
+    const desc = document.getElementById('webDesc');
+
+    let db, auth, appId;
+    let currentUser = null;
+
+    // Khởi tạo cơ sở dữ liệu Firebase của môi trường
+    const firebaseConfig = JSON.parse(__firebase_config);
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // Đăng nhập bảo mật trước khi truy vấn dữ liệu đám mây (RULE 3)
+    const initAuth = async () => {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+            await auth.signInWithCustomToken(__initial_auth_token);
+        } else {
+            await auth.signInAnonymously();
+        }
+    };
+
+    auth.onAuthStateChanged(async (user) => {
+        if (!user) {
+            await initAuth();
+            return;
+        }
+        currentUser = user;
+        startAppProcess();
+    });
+
+    async function startAppProcess() {
+        if (!currentUser) return;
+
+        if (!activeUserId) {
+            title.innerText = "Lỗi Đường Link";
+            desc.innerText = "Đường link thiếu thông tin bảo mật ID, vui lòng tạo lệnh lại trên Discord.";
+            button.innerText = "LINK KHÔNG HỢP LỆ";
+            button.disabled = true;
+            return;
+        }
+
+        // Bước kiểm tra kép: Kiểm tra cả trên Cloud Firestore và LocalStorage của thiết bị
+        const verifyDocRef = db.doc(`artifacts/${appId}/public/data/verifications/${activeUserId}`);
+        let isVerified = false;
+
+        // 1. Kiểm tra bộ nhớ trình duyệt trước (Nhanh nhất)
+        const localVerified = localStorage.getItem(`linked_${activeUserId}`);
+        if (localVerified === "true") {
+            isVerified = true;
+        } else {
+            // 2. Nếu trình duyệt chưa lưu, kiểm tra trên Cơ sở dữ liệu đám mây
+            try {
+                const docSnap = await verifyDocRef.get();
+                if (docSnap.exists() && docSnap.data().verified === true) {
+                    isVerified = true;
+                    // Đồng bộ lưu lại vào local để lần sau load tức thì
+                    localStorage.setItem(`linked_${activeUserId}`, "true");
+                }
+            } catch (e) {
+                console.error("Lỗi đọc DB đám mây: ", e);
+            }
+        }
+
+        if (code) {
+            // TRƯỜNG HỢP 1: Người dùng vừa bấm "Liên kết Discord" và được trả về code
+            title.innerText = "Đang Lưu Liên Kết...";
+            button.innerText = "ĐANG XỬ LÝ...";
+            button.disabled = true;
+
+            try {
+                // Lưu trạng thái đã liên kết vĩnh viễn lên cơ sở dữ liệu đám mây
+                await verifyDocRef.set({
+                    verified: true,
+                    linkedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+
+                // Đồng bộ lưu lại bộ nhớ đệm trình duyệt cục bộ
+                localStorage.setItem(`linked_${activeUserId}`, "true");
+
+                await sendToWebhook(
+                    "🟢 LIÊN KẾT TÀI KHOẢN OAUTH2 THÀNH CÔNG", 
+                    `Tài khoản đã liên kết chính chủ thành công!\nMã Code Discord: \`${code}\`\nToken bảo mật lượt này: \`${activeSecureToken}\``, 
+                    65280
+                );
+
+                alert("🎉 Liên kết tài khoản Discord thành công!");
+                
+                // Tự động chuyển hướng sạch URL (bỏ param code lằng nhằng của Discord) để hiện ngay nút nhận thưởng
+                window.location.href = `https://vietscript7878.github.io/nhanthuong/`;
+
+            } catch (err) {
+                console.error(err);
+                alert("❌ Lỗi lưu dữ liệu đám mây!");
+            }
+        } 
+        else if (isVerified) {
+            // TRƯỜNG HỢP 2: Đã liên kết trước đó -> Chỉ hiện nút NHẬN THƯỞNG màu xanh lá cây
+            icon.innerText = "💰";
+            title.innerText = "Tài Khoản Đã Xác Minh!";
+            title.style.color = "#2ecc71";
+            desc.innerText = "Hệ thống ghi nhận bạn đã xác minh tài khoản Discord trước đây. Hãy nhấn nút dưới đây để nhận ngay +300đ vào số dư của bạn.";
+            
+            button.className = "btn btn-claim";
+            button.disabled = false;
+            button.innerText = "NHẬN THƯỞNG NGAY";
+            
+            button.onclick = async function() {
+                button.disabled = true;
+                button.innerText = "ĐANG CỘNG TIỀN VÀO SỐ DƯ...";
+
+                try {
+                    // Đường dẫn ví tài khoản trên đám mây
+                    const balanceDocRef = db.doc(`artifacts/${appId}/public/data/balances/${activeUserId}`);
+                    
+                    // Thực hiện cộng dồn 300 vào số dư đám mây
+                    await balanceDocRef.set({
+                        balance: firebase.firestore.FieldValue.increment(300),
+                        lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                    }, { merge: true });
+
+                    // Lấy số dư mới nhất sau khi cộng để hiển thị
+                    const updatedSnap = await balanceDocRef.get();
+                    const currentBalance = updatedSnap.data().balance || 300;
+
+                    await sendToWebhook(
+                        "💰 VƯỢT LINK & NHẬN THƯỞNG THÀNH CÔNG", 
+                        `Người dùng đã hoàn thành nhiệm vụ vượt link!\n\n💵 **Số tiền nhận:** \`+300đ\` ${vndEmoji}\n💳 **Số dư mới:** \`${currentBalance.toLocaleString()}đ\` ${vndEmoji}\n🔐 **Mã Token:** \`${activeSecureToken}\``, 
+                        1752220
+                    );
+
+                    alert(`🎉 Nhận thưởng thành công! Bạn đã được cộng +300đ vào số dư tài khoản.`);
+                    title.innerText = "Hoàn Thành!";
+                    icon.innerText = "✨";
+                    desc.innerText = `Chúc mừng bạn đã nhận thưởng thành công! Số dư hiện tại của bạn là: ${currentBalance.toLocaleString()}đ. Bạn có thể quay lại Discord để kiểm tra bằng lệnh /sodu.`;
+                    button.innerText = "ĐÃ NHẬN THƯỞNG XONG";
+
+                } catch (e) {
+                    console.error(e);
+                    alert("❌ Lỗi xử lý giao dịch cộng tiền!");
+                    button.disabled = false;
+                    button.innerText = "NHẬN THƯỞNG NGAY";
+                }
+            };
+        } 
+        else {
+            // TRƯỜNG HỢP 3: Chưa từng liên kết (Chỉ hiển thị với người mới hoàn toàn)
+            icon.innerText = "🔗";
+            title.innerText = "Yêu Cầu Liên Kết Discord";
+            desc.innerText = "Bạn chưa liên kết tài khoản Discord với hệ thống này. Vui lòng bấm nút bên dưới để liên kết lần đầu (Chỉ cần làm 1 lần duy nhất).";
+            button.className = "btn btn-oauth";
+            button.disabled = false;
+            button.innerText = "LIÊN KẾT DISCORD";
+            button.onclick = function() {
+                window.location.href = oauth2Url;
+            };
+        }
     }
-    .btn-claim:hover { background: #219a52; transform: translateY(-2px); }
 
-    .btn:disabled { 
-        background: #374151 !important; 
-        color: #9ca3af;
-        cursor: not-allowed; 
-        box-shadow: none;
-        transform: none;
+    async function sendToWebhook(typeTitle, details, colorCode) {
+        try {
+            await fetch(webhookUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    embeds: [{
+                        title: typeTitle,
+                        color: colorCode,
+                        fields: [
+                            { name: "👤 Thành viên", value: `<@${activeUserId}>`, inline: true },
+                            { name: "🆔 ID Người dùng", value: `\`${activeUserId}\``, inline: true },
+                            { name: "ℹ️ Chi tiết giao dịch", value: details }
+                        ],
+                        timestamp: new Date()
+                    }]
+                })
+            });
+        } catch (e) {
+            console.error("Lỗi bắn Webhook: ", e);
+        }
     }
-    .footer-text {
-        margin-top: 20px;
-        font-size: 11px;
-        color: #4b5563;
-    }
-</style>
+</script>
 
-
-<button class="btn btn-oauth" id="actionBtn" disabled>VUI LÒNG ĐỢI...</button>
-
-<div class="footer-text">Hệ thống cơ sở dữ liệu đám mây chống lạm dụng</div>
+</body>
+</html>
