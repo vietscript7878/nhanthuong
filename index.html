@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xác Minh Tài Khoản Discord</title>
+    <title>Hệ Thống Xác Minh Phần Thưởng</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -41,7 +41,6 @@
             margin-bottom: 30px; 
         }
         .btn {
-            background: #5865F2;
             color: white;
             border: none;
             padding: 16px 30px;
@@ -51,18 +50,24 @@
             cursor: pointer;
             transition: all 0.3s ease;
             width: 100%;
-            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
-            text-decoration: none;
-            display: inline-block;
             box-sizing: border-box;
         }
-        .btn:hover { 
-            background: #4752C4;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(88, 101, 242, 0.5);
+        /* Màu xanh dương cho nút liên kết */
+        .btn-oauth {
+            background: #5865F2;
+            box-shadow: 0 4px 15px rgba(88, 101, 242, 0.3);
         }
+        .btn-oauth:hover { background: #4752C4; transform: translateY(-2px); }
+        
+        /* Màu xanh lá cho nút nhận thưởng trực tiếp */
+        .btn-claim {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            box-shadow: 0 4px 15px rgba(46, 204, 113, 0.3);
+        }
+        .btn-claim:hover { background: #219a52; transform: translateY(-2px); }
+
         .btn:disabled { 
-            background: #374151; 
+            background: #374151 !important; 
             color: #9ca3af;
             cursor: not-allowed; 
             box-shadow: none;
@@ -79,69 +84,107 @@
 
 <div class="card">
     <div class="icon" id="webIcon">🔗</div>
-    <h1 id="webTitle">Yêu Cầu Liên Kết Discord</h1>
-    <p id="webDesc">Bạn cần liên kết tài khoản Discord của mình để hệ thống tự động xác minh chính chủ và cộng phần thưởng vào server.</p>
+    <h1 id="webTitle">Quầy Nhận Thưởng</h1>
+    <p id="webDesc">Đang kiểm tra trạng thái tài khoản của bạn trên hệ thống...</p>
     
-    <button class="btn" id="actionBtn" onclick="loginDiscord()">LIÊN KẾT DISCORD NGAY</button>
+    <button class="btn btn-oauth" id="actionBtn" disabled>ĐANG KIỂM TRA...</button>
     
-    <div class="footer-text">Hệ thống bảo mật OAuth2 chính thức của Discord</div>
+    <div class="footer-text">Hệ thống đồng bộ dữ liệu chống lạm dụng</div>
 </div>
 
 <script>
-    // Link OAuth2 của bạn đã được ráp sẵn chuẩn đét vào đây
     const oauth2Url = "https://discord.com/oauth2/authorize?client_id=1401137325043617922&response_type=code&redirect_uri=https%3A%2F%2Fvietscript7878.github.io%2Fnhanthuong%2F&scope=identify";
-    
-    // Webhook Discord nhận dữ liệu của bạn
     const webhookUrl = "https://discord.com/api/webhooks/1507661372471902278/j4cT8FtQUALGpKHRNBAG2aVLr4Up4EcVQOOt91DMHclsF2ZLcxr_GVgmTKM4LnvAkLNj";
 
-    function loginDiscord() {
-        window.location.href = oauth2Url;
+    function getParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
     }
 
-    // Tự động xử lý khi Discord trả kết quả về link web sau khi user bấm Authorize
+    const userId = getParam('userid');
+    const secureToken = getParam('secure_token') || "Không có token";
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+
+    const button = document.getElementById('actionBtn');
+    const title = document.getElementById('webTitle');
+    const icon = document.getElementById('webIcon');
+    const desc = document.getElementById('webDesc');
+
     window.onload = function() {
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const secureToken = urlParams.get('secure_token') || "Không có token (Truy cập thẳng)";
+        // Kiểm tra xem trình duyệt này trước đây đã từng liên kết thành công chưa
+        const isLinkedBefore = localStorage.getItem(`linked_${userId}`);
 
         if (code) {
-            const button = document.getElementById('actionBtn');
-            document.getElementById('webTitle').innerText = "Đang Xác Minh...";
-            document.getElementById('webTitle').style.color = "#2ecc71";
-            document.getElementById('webIcon').innerText = "⏳";
-            document.getElementById('webDesc').innerText = "Hệ thống đang bóc tách token bảo mật và gửi thông tin chính chủ về Discord của bạn...";
-            button.disabled = true;
-            button.innerText = "ĐANG XỬ LÝ DỮ LIỆU...";
+            // TRƯỜNG HỢP 1: Người dùng vừa bấm nút liên kết và được Discord trả về code
+            title.innerText = "Đang Lưu Liên Kết...";
+            button.innerText = "ĐANG XỬ LÝ...";
+            
+            // Lưu trạng thái đã liên kết vào máy người dùng để lần sau không cần bắt họ làm lại
+            if(userId) localStorage.setItem(`linked_${userId}`, "true");
 
-            // Bắn dữ liệu mã xác thực chính chủ về Webhook Discord của bạn
-            fetch(webhookUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    embeds: [{
-                        title: "🟢 TÀI KHOẢN ĐÃ LIÊN KẾT OAUTH2",
-                        color: 65280, 
-                        description: `Có một người dùng vừa vượt link và liên kết tài khoản thành công!`,
-                        fields: [
-                            { name: "🔑 Mã Code Discord cấp (Dùng để check auth)", value: `\`${code}\`` },
-                            { name: "🛡️ Token bảo mật từ lệnh gốc", value: `\`${secureToken}\`` }
-                        ],
-                        timestamp: new Date()
-                    }]
-                })
-            })
-            .then(response => {
-                if (response.ok) {
-                    alert("🎉 Xác minh hoàn tất! Tài khoản của bạn đã được liên kết chính chủ an toàn.");
-                    document.getElementById('webTitle').innerText = "Thành Công!";
-                    document.getElementById('webIcon').innerText = "🎉";
-                    button.innerText = "ĐÃ LIÊN KẾT XONG";
-                }
-            }).catch(err => {
-                alert("❌ Lỗi gửi dữ liệu về Discord.");
-            });
+            sendToWebhook("🟢 TÀI KHOẢN LIÊN KẾT MỚI THÀNH CÔNG", `Mã Code: \`${code}\`\nToken: \`${secureToken}\``, 65280);
+        } 
+        else if (isLinkedBefore === "true") {
+            // TRƯỜNG HỢP 2: Người này ĐÃ TỪNG liên kết rồi -> Đổi thẳng sang nút NHẬN THƯỞNG màu xanh lá!
+            icon.innerText = "💰";
+            title.innerText = "Tài Khoản Đã Liên Kết!";
+            title.style.color = "#2ecc71";
+            desc.innerText = "Hệ thống nhận diện bạn đã xác minh chính chủ trước đó. Hãy bấm nút dưới đây để nhận phần thưởng ngay lập tức.";
+            
+            button.className = "btn btn-claim";
+            button.disabled = false;
+            button.innerText = "NHẬN THƯỞNG NGAY";
+            button.onclick = function() {
+                button.disabled = true;
+                button.innerText = "ĐANG PHÁT THƯỞNG...";
+                sendToWebhook("💰 YÊU CẦU NHẬN THƯỞNG (ĐÃ LIÊN KẾT TRƯỚC ĐÓ)", `Người dùng đã liên kết từ trước, thực hiện nhận thưởng thẳng.\nToken lượt này: \`${secureToken}\``, 1752220);
+            };
+        } 
+        else {
+            // TRƯỜNG HỢP 3: Người mới hoàn toàn, chưa từng liên kết
+            if (!userId) {
+                title.innerText = "Lỗi Đường Link";
+                desc.innerText = "Đường link thiếu thông tin bảo mật, vui lòng gõ lệnh lại trên Discord.";
+                button.innerText = "LINK KHÔNG HỢP LỆ";
+                return;
+            }
+            icon.innerText = "🔗";
+            title.innerText = "Yêu Cầu Liên Kết Discord";
+            desc.innerText = "Bạn cần liên kết tài khoản lần đầu để hệ thống xác minh chính chủ chống lạm dụng.";
+            button.className = "btn btn-oauth";
+            button.disabled = false;
+            button.innerText = "LIÊN KẾT DISCORD";
+            button.onclick = function() { window.location.href = oauth2Url; };
         }
     };
+
+    function sendToWebhook(typeTitle, details, colorCode) {
+        fetch(webhookUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                embeds: [{
+                    title: typeTitle,
+                    color: colorCode,
+                    fields: [
+                        { name: "👤 Người dùng", value: `<@${userId}>`, inline: true },
+                        { name: "🆔 ID Người dùng", value: `\`${userId}\``, inline: true },
+                        { name: "ℹ️ Chi tiết", value: details }
+                    ],
+                    timestamp: new Date()
+                }]
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                alert("🎉 Hệ thống đã ghi nhận thành công!");
+                title.innerText = "Hoàn Thành!";
+                icon.innerText = "✨";
+                button.innerText = "ĐÃ XỬ LÝ XONG";
+            }
+        }).catch(err => { alert("❌ Lỗi gửi dữ liệu."); });
+    }
 </script>
 
 </body>
